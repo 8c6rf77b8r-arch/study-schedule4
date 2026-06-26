@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>学習スケジューラー｜簿記論・財務諸表論</title>
+<style>
+  :root{
+    --bg:#F7F5EF;            /* warm paper */
+    --surface:#FFFFFF;
+    --surface-2:#FBFAF6;
+    --line:#E7E3D8;
+    --ink:#23252E;          /* primary text */
+    --ink-2:#6A6E7B;        /* muted text */
+    --ink-3:#9B9E9A;
+    --indigo:#33356B;       /* primary brand */
+    --indigo-soft:#EAEAF3;
+    --teal:#2E9E8F;         /* progress / growth */
+    --teal-soft:#E2F1EE;
+    --amber:#D88A2B;        /* near limit */
+    --red:#C9503B;          /* over limit / overdue */
+    --red-soft:#F7E5E0;
+    --shadow:0 1px 2px rgba(35,37,46,.05), 0 8px 24px -16px rgba(35,37,46,.25);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Yu Gothic","Noto Sans JP",system-ui,sans-serif;
+    background:var(--bg); color:var(--ink);
+    -webkit-font-smoothing:antialiased; line-height:1.55;
+    font-variant-numeric:tabular-nums;
+  }
+  .wrap{max-width:560px; margin:0 auto; padding:0 16px calc(96px + env(safe-area-inset-bottom));}
+  .tnum{font-variant-numeric:tabular-nums;}
+
+  /* Header */
+  header.appbar{
+    position:sticky; top:0; z-index:30; background:rgba(247,245,239,.86);
+    backdrop-filter:saturate(1.4) blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .appbar-inner{max-width:560px; margin:0 auto; padding:14px 16px 12px; display:flex; align-items:baseline; gap:10px;}
+  .brand{font-weight:800; letter-spacing:.02em; font-size:18px; color:var(--indigo);}
+  .brand small{display:block; font-weight:600; font-size:11px; letter-spacing:.14em; color:var(--ink-3); margin-top:1px;}
+  .tag{margin-left:auto; font-size:11px; font-weight:700; color:var(--teal); background:var(--teal-soft); padding:3px 9px; border-radius:999px;}
+
+  /* Views */
+  .view{display:none; padding-top:18px;}
+  .view.active{display:block; animation:fade .28s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+
+  h2.section{font-size:13px; font-weight:800; letter-spacing:.12em; color:var(--ink-2); margin:6px 2px 10px; text-transform:uppercase;}
+
+  /* Daily capacity meter — signature element */
+  .daybar{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:16px 16px 18px; margin-bottom:16px;
+  }
+  .daynav{display:flex; align-items:center; gap:8px; margin-bottom:14px;}
+  .daynav .date{font-weight:800; font-size:17px; flex:1;}
+  .daynav .dow{color:var(--ink-2); font-weight:700; font-size:14px;}
+  .navbtn{appearance:none; border:1px solid var(--line); background:var(--surface-2); color:var(--ink);
+    border-radius:10px; height:34px; min-width:34px; padding:0 8px; font-size:14px; font-weight:700; cursor:pointer;}
+  .navbtn:active{transform:scale(.96);}
+  .navbtn.today{color:var(--indigo);}
+
+  .meter-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:7px;}
+  .meter-num{font-size:26px; font-weight:800; letter-spacing:-.01em;}
+  .meter-num .lim{font-size:14px; font-weight:700; color:var(--ink-2);}
+  .meter-state{font-size:12px; font-weight:800; padding:3px 9px; border-radius:999px;}
+  .meter-track{height:12px; border-radius:999px; background:var(--indigo-soft); overflow:hidden; position:relative;}
+  .meter-fill{height:100%; border-radius:999px; background:var(--indigo); transition:width .4s ease;}
+  .meter-fill.done-seg{background:var(--teal);}
+  .meter-sub{display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:var(--ink-2);}
+  .ok{color:var(--teal); background:var(--teal-soft);}
+  .warn{color:var(--amber); background:#FBF0DD;}
+  .over{color:var(--red); background:var(--red-soft);}
+
+  /* Task cards */
+  .tasklist{display:flex; flex-direction:column; gap:10px;}
+  .task{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:13px 14px; position:relative; overflow:hidden;
+  }
+  .task::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--indigo);}
+  .task.r2::before{background:#6E70A8;}
+  .task.r3::before{background:#A9ABCF;}
+  .task.review::before{background:var(--teal);}
+  .task.done{opacity:.62;}
+  .task.overdue::before{background:var(--red);}
+
+  .task-top{display:flex; align-items:flex-start; gap:10px;}
+  .task-check{
+    appearance:none; width:24px; height:24px; flex:none; border:2px solid var(--line);
+    border-radius:7px; background:var(--surface-2); cursor:pointer; margin-top:1px; position:relative;
+  }
+  .task-check:checked{background:var(--teal); border-color:var(--teal);}
+  .task-check:checked::after{content:"✓"; color:#fff; font-size:15px; font-weight:900; position:absolute; left:4px; top:-1px;}
+  .task-body{flex:1; min-width:0;}
+  .task-title{font-weight:800; font-size:15px; line-height:1.35;}
+  .task.done .task-title{text-decoration:line-through; text-decoration-color:var(--ink-3);}
+  .task-meta{display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:6px; font-size:12px; color:var(--ink-2);}
+  .badge{font-size:11px; font-weight:800; padding:2px 8px; border-radius:999px; letter-spacing:.02em;}
+  .b-r1{color:var(--indigo); background:var(--indigo-soft);}
+  .b-r2{color:#5557a0; background:#ECEDF7;}
+  .b-r3{color:#7e80b4; background:#F1F1F8;}
+  .b-rev{color:var(--teal); background:var(--teal-soft);}
+  .b-over{color:var(--red); background:var(--red-soft);}
+  .b-split{color:var(--amber); background:#FBF0DD;}
+  .task-min{font-weight:800; color:var(--ink); font-size:13px;}
+  .task-actions{display:flex; gap:8px; margin-top:11px;}
+  .act{appearance:none; border:1px solid var(--line); background:var(--surface-2); color:var(--ink-2);
+    border-radius:9px; padding:6px 11px; font-size:12px; font-weight:700; cursor:pointer;}
+  .act:active{transform:scale(.97);}
+  .act.skip{color:var(--amber);}
+
+  .empty{
+    text-align:center; color:var(--ink-2); padding:40px 16px; background:var(--surface);
+    border:1px dashed var(--line); border-radius:var(--radius);
+  }
+  .empty b{display:block; color:var(--ink); font-size:15px; margin-bottom:4px;}
+
+  /* Generic cards / forms */
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:16px; margin-bottom:14px;}
+  .card h3{margin:0 0 4px; font-size:15px; font-weight:800;}
+  .card .hint{font-size:12px; color:var(--ink-2); margin:0 0 12px;}
+  label.fld{display:block; margin-bottom:12px;}
+  label.fld span{display:block; font-size:12px; font-weight:700; color:var(--ink-2); margin-bottom:5px;}
+  input[type=text],input[type=number],input[type=date],select{
+    width:100%; appearance:none; border:1px solid var(--line); background:var(--surface-2);
+    border-radius:10px; padding:10px 12px; font-size:15px; color:var(--ink);
+    font-family:inherit; font-variant-numeric:tabular-nums;
+  }
+  input:focus,select:focus{outline:2px solid var(--indigo); outline-offset:1px; border-color:transparent;}
+  .row{display:flex; gap:10px;} .row>*{flex:1;}
+  .toggle{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0;}
+  .switch{position:relative; width:46px; height:27px; flex:none;}
+  .switch input{opacity:0; width:0; height:0;}
+  .slider{position:absolute; inset:0; background:var(--line); border-radius:999px; transition:.2s; cursor:pointer;}
+  .slider::before{content:""; position:absolute; height:21px; width:21px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s; box-shadow:0 1px 2px rgba(0,0,0,.2);}
+  .switch input:checked + .slider{background:var(--teal);}
+  .switch input:checked + .slider::before{transform:translateX(19px);}
+
+  .btn{appearance:none; border:none; border-radius:11px; padding:12px 16px; font-size:14px; font-weight:800;
+    cursor:pointer; font-family:inherit; width:100%;}
+  .btn.primary{background:var(--indigo); color:#fff;}
+  .btn.primary:active{transform:scale(.99);}
+  .btn.ghost{background:var(--surface-2); color:var(--ink); border:1px solid var(--line);}
+  .btn.small{width:auto; padding:8px 13px; font-size:13px;}
+  .btn-row{display:flex; gap:10px; margin-top:6px;}
+
+  /* Material tree */
+  .subj{margin-bottom:14px;}
+  .subj-head{display:flex; align-items:center; gap:8px; margin:0 2px 8px; font-weight:800; font-size:15px;}
+  .subj-head .dot{width:9px; height:9px; border-radius:50%; background:var(--indigo);}
+  .subj-head.fzr .dot{background:var(--teal);}
+  .chapter{background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); margin-bottom:10px; overflow:hidden;}
+  .chapter-head{display:flex; align-items:center; gap:8px; padding:11px 13px; border-bottom:1px solid var(--line); background:var(--surface-2);}
+  .chapter-head b{font-size:14px; flex:1;}
+  .mat-row{display:flex; align-items:center; gap:10px; padding:9px 13px; border-bottom:1px solid var(--line);}
+  .mat-row:last-child{border-bottom:none;}
+  .mat-type{font-size:13px; font-weight:700; flex:1;}
+  .mat-type small{display:block; font-weight:600; color:var(--ink-2); font-size:11px;}
+  .mat-pages{display:flex; align-items:center; gap:6px;}
+  .mat-pages input{width:62px; text-align:center; padding:7px 6px;}
+  .mat-pages .u{font-size:12px; color:var(--ink-2);}
+  .mat-time{font-size:11px; color:var(--ink-2); width:100%; padding:6px 13px 10px; background:var(--surface-2);}
+  .iconbtn{appearance:none; border:none; background:transparent; color:var(--ink-3); font-size:18px; cursor:pointer; padding:2px 6px; line-height:1;}
+  .iconbtn:hover{color:var(--red);}
+
+  /* Progress */
+  .pcard{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:15px; margin-bottom:12px;}
+  .pcard .pname{font-weight:800; font-size:15px; margin-bottom:3px;}
+  .pcard .pstat{font-size:12px; color:var(--ink-2); margin-bottom:10px;}
+  .pbar{height:10px; border-radius:999px; background:var(--indigo-soft); overflow:hidden;}
+  .pbar > i{display:block; height:100%; background:var(--teal); border-radius:999px; transition:width .5s ease;}
+  .pmilestones{display:flex; justify-content:space-between; margin-top:9px; font-size:11px; color:var(--ink-3); font-weight:700;}
+  .pmilestones .hit{color:var(--teal);}
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;}
+  .stat{background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); padding:13px 14px;}
+  .stat .v{font-size:22px; font-weight:800;}
+  .stat .l{font-size:11px; color:var(--ink-2); font-weight:700; letter-spacing:.04em;}
+
+  /* Bottom nav */
+  nav.tabbar{
+    position:fixed; left:0; right:0; bottom:0; z-index:40;
+    background:rgba(255,255,255,.94); backdrop-filter:blur(10px); border-top:1px solid var(--line);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  .tabbar-inner{max-width:560px; margin:0 auto; display:flex;}
+  .tab{flex:1; appearance:none; border:none; background:none; padding:9px 0 8px; cursor:pointer; color:var(--ink-3); font-family:inherit;}
+  .tab .ti{font-size:20px; line-height:1; display:block;}
+  .tab .tl{font-size:10px; font-weight:800; margin-top:3px; letter-spacing:.04em;}
+  .tab.active{color:var(--indigo);}
+  .tab.active .tl{color:var(--indigo);}
+
+  /* Toast */
+  .toast{position:fixed; left:50%; bottom:84px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; padding:11px 18px; border-radius:11px; font-size:13px; font-weight:700;
+    opacity:0; pointer-events:none; transition:.28s; z-index:60; max-width:90%; text-align:center;}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  .note{font-size:12px; color:var(--ink-2); background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:11px 12px; margin-top:6px;}
+  .warnbox{font-size:12.5px; color:var(--red); background:var(--red-soft); border:1px solid #E9CFC8; border-radius:10px; padding:11px 12px; margin-bottom:14px; font-weight:600;}
+  hr.sep{border:none; border-top:1px solid var(--line); margin:14px 0;}
+</style>
+</head>
+<body>
+
+<header class="appbar">
+  <div class="appbar-inner">
+    <div class="brand">学習スケジューラー<small>BOOKKEEPING / FINANCIAL STATEMENTS</small></div>
+    <span class="tag" id="planTag">—</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ===== TODAY ===== -->
+  <section class="view active" id="view-today">
+    <div class="daybar">
+      <div class="daynav">
+        <button class="navbtn" id="prevDay">←</button>
+        <div class="date"><span id="dDate">—</span> <span class="dow" id="dDow"></span></div>
+        <button class="navbtn today" id="todayBtn">今日</button>
+        <button class="navbtn" id="nextDay">→</button>
+      </div>
+      <div class="meter-head">
+        <div class="meter-num"><span id="mUsed">0</span><span class="lim"> / <span id="mLimit">0</span>分</span></div>
+        <span class="meter-state ok" id="mState">余裕あり</span>
+      </div>
+      <div class="meter-track"><div class="meter-fill" id="mFill" style="width:0%"></div></div>
+      <div class="meter-sub"><span id="mPct">進捗 0%</span><span id="mLeft">残り 0分</span></div>
+    </div>
+    <div class="tasklist" id="taskList"></div>
+  </section>
+
+  <!-- ===== MATERIALS ===== -->
+  <section class="view" id="view-materials">
+    <h2 class="section">教材とページ数</h2>
+    <div class="note" style="margin-bottom:14px;">
+      財務諸表論：要点／理論／○×チェックの<b>ページ数</b>を入力（要点のみ丸つけ・直し×2）。
+      簿記論：テキストは<b>ページ数</b>（5分/ページ）、問題集は<b>分数</b>を直接入力します。
+      入力すると3周分の時間が自動計算されます。
+    </div>
+    <div id="subjectTree"></div>
+    <div class="card" style="margin-top:4px;">
+      <h3>章を追加</h3>
+      <p class="hint">科目を選び、章名を入力して追加します。</p>
+      <div class="row" style="margin-bottom:10px;">
+        <label class="fld" style="margin:0;"><span>科目</span>
+          <select id="newChSubject">
+            <option value="簿記論">簿記論</option>
+            <option value="財務諸表論">財務諸表論</option>
+          </select>
+        </label>
+        <label class="fld" style="margin:0; flex:1.4;"><span>章名</span>
+          <input type="text" id="newChName" placeholder="例）第2章 損益計算書">
+        </label>
+      </div>
+      <button class="btn primary" id="addChapter">章を追加</button>
+    </div>
+    <button class="btn primary" id="genFromMat" style="margin-top:4px;">スケジュールを作り直す</button>
+  </section>
+
+  <!-- ===== PROGRESS ===== -->
+  <section class="view" id="view-progress">
+    <h2 class="section">学習の状況</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="v" id="stDays">—</div><div class="l">総所要日数</div></div>
+      <div class="stat"><div class="v" id="stEnd">—</div><div class="l">完了予定日</div></div>
+      <div class="stat"><div class="v" id="stDone">—</div><div class="l">完了タスク</div></div>
+      <div class="stat"><div class="v" id="stHours">—</div><div class="l">総学習時間</div></div>
+    </div>
+    <div id="overflowBox"></div>
+    <h2 class="section">科目別の進捗</h2>
+    <div id="progressList"></div>
+    <h2 class="section">エクスポート</h2>
+    <div class="card">
+      <p class="hint" style="margin-bottom:12px;">スケジュールを外部ツールで分析できます。</p>
+      <div class="btn-row">
+        <button class="btn ghost small" id="expCsv">CSV を保存</button>
+        <button class="btn ghost small" id="expJson">JSON を保存</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== SETTINGS ===== -->
+  <section class="view" id="view-settings">
+    <h2 class="section">学習設定</h2>
+    <div class="card">
+      <h3>1日の勉強時間</h3>
+      <p class="hint">この上限を超えないようにタスクが自動で翌日以降へ振り分けられます。</p>
+      <label class="fld"><span>1日の上限（分）</span>
+        <input type="number" id="setLimit" min="15" step="15" value="120">
+      </label>
+      <div class="row">
+        <label class="fld"><span>開始日</span><input type="date" id="setStart"></label>
+        <label class="fld"><span>終了日（目標）</span><input type="date" id="setEnd"></label>
+      </div>
+      <div class="toggle">
+        <div><div style="font-weight:700; font-size:14px;">土日も学習する</div>
+        <div class="hint" style="margin:0;">オフにすると平日のみに割り当てます。</div></div>
+        <label class="switch"><input type="checkbox" id="setWeekend" checked><span class="slider"></span></label>
+      </div>
+      <hr class="sep">
+      <button class="btn primary" id="saveSettings">設定を保存して再計算</button>
+    </div>
+
+    <div class="card">
+      <h3>計算ルール</h3>
+      <div class="note" style="margin-top:0;">
+        ＜財務諸表論＞<br>
+        ・要点チェック：15分/ページ＋丸つけ・直し（×2）＝<b>45分/ページ</b><br>
+        ・理論チェック / ○×チェック：<b>5分/ページ</b><br>
+        ＜簿記論＞<br>
+        ・テキスト：<b>5分/ページ</b>（丸つけなし）<br>
+        ・問題集：<b>入力した分数そのまま</b><br>
+        ＜共通＞<br>
+        ・周回係数：1周目 ×1.0 ／ 2周目 ×0.9 ／ 3周目 ×0.7<br>
+        ・2周目は1周目終了の<b>7日後</b>、3周目は2周目終了の<b>7日後</b>に開始<br>
+        ・忘却曲線の復習：1周目完了の<b>1・3・7日後</b>に基本時間×0.5で挿入
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>データ</h3>
+      <p class="hint">入力内容はこの端末に保存されます。</p>
+      <div class="btn-row">
+        <button class="btn ghost small" id="loadSample">カリキュラムを読み込む</button>
+        <button class="btn ghost small" id="resetAll" style="color:var(--red);">すべて消去</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<nav class="tabbar">
+  <div class="tabbar-inner">
+    <button class="tab active" data-v="today"><span class="ti">📅</span><span class="tl">今日</span></button>
+    <button class="tab" data-v="materials"><span class="ti">📚</span><span class="tl">教材</span></button>
+    <button class="tab" data-v="progress"><span class="ti">📈</span><span class="tl">進捗</span></button>
+    <button class="tab" data-v="settings"><span class="ti">⚙️</span><span class="tl">設定</span></button>
+  </div>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   学習スケジューラー高度化版
+   3周モデル / 忘却曲線復習 / 1日上限の自動調整
+   ============================================================ */
+
+/* ---------- 永続化（localStorage、不可ならメモリ） ---------- */
+const KEY = "study-scheduler-v4";
+const Store = (() => {
+  let mem = null, ok = true;
+  try { localStorage.setItem("__t","1"); localStorage.removeItem("__t"); } catch(e){ ok=false; }
+  return {
+    save(o){ const s=JSON.stringify(o); if(ok){ try{ localStorage.setItem(KEY,s); return; }catch(e){} } mem=s; },
+    load(){ if(ok){ try{ const r=localStorage.getItem(KEY); if(r) return JSON.parse(r);}catch(e){} } return mem?JSON.parse(mem):null; },
+    clear(){ if(ok){ try{ localStorage.removeItem(KEY);}catch(e){} } mem=null; }
+  };
+})();
+
+/* ---------- 日付ユーティリティ（ISO 'YYYY-MM-DD'基準） ---------- */
+const DOW = ["日","月","火","水","木","金","土"];
+function iso(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function parseISO(s){ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); }
+function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
+function isWeekend(d){ const w=d.getDay(); return w===0||w===6; }
+function ceilDiv(a,b){ return b>0?Math.ceil(a/b):0; }
+function todayISO(){ return iso(new Date()); }
+// study日数を進める（土日除外オプション対応）
+function addStudyDays(start, nDays, includeWeekends){
+  if(includeWeekends) return addDays(start, Math.max(0,nDays));
+  let d=new Date(start), count=0;
+  while(count<nDays){ d=addDays(d,1); if(!isWeekend(d)) count++; }
+  return d;
+}
+
+/* ---------- 時間計算ルール ---------- */
+const COEF = {1:1.0, 2:0.9, 3:0.7};
+const MAT_DEFS = {
+  // 財務諸表論（理論）：ページ × 固定分
+  "要点チェック": {perPage:15, marking:true,  unit:"ページ", note:"テキスト確認・丸つけ・直し（×2）"},
+  "理論チェック": {perPage:5,  marking:false, unit:"ページ", note:"暗記確認・丸つけなし"},
+  "○×チェック": {perPage:5,  marking:false, unit:"ページ", note:"正誤判定・丸つけなし"},
+  // 簿記論：テキストはページ×5分、問題集は分数を直接入力
+  "テキスト":   {perPage:5,  marking:false, unit:"ページ", note:"テキスト確認・1ページ5分"},
+  "問題集":     {direct:true, marking:false, unit:"分",     note:"表示どおりの分数を入力"}
+};
+const SUBJECT_TYPES = {
+  "財務諸表論": ["要点チェック","理論チェック","○×チェック"],
+  "簿記論":     ["テキスト","問題集"]
+};
+function matTypesOf(name){ return SUBJECT_TYPES[name] || ["要点チェック","理論チェック","○×チェック"]; }
+function matAmount(type, m){ return MAT_DEFS[type].direct ? (m.minutes|0) : (m.pages|0); }
+// amount = ページ数（perPage型）または 分（direct型）
+function matTimes(type, amount){
+  const def = MAT_DEFS[type]; amount = amount||0;
+  if(def.direct){ return { learn:amount, mark:0, total:amount }; }
+  const learn = amount*def.perPage;
+  const mark  = def.marking ? amount*def.perPage*2 : 0; // 丸つけ・直し＝学習時間×2
+  return { learn, mark, total: learn+mark };
+}
+function roundMinutes(matTotal, round){ return Math.round(matTotal*COEF[round]); }
+function reviewMinutes(matTotal){ return Math.round(matTotal*0.5); }
+
+/* ---------- 優先度スコア（期限0.6 + 周0.4） ---------- */
+const ROUND_SCORE = {1:90, 2:60, 3:30}; const REVIEW_SCORE = 10;
+function deadlineScore(due, date){
+  const days = Math.round((due - date)/86400000);
+  if(days < 0) return 100;                 // 期限超過＝最優先
+  return Math.max(0, Math.min(100, 100 - days*3));
+}
+function priorityScore(task, date){
+  const rScore = task.kind==="review" ? REVIEW_SCORE : ROUND_SCORE[task.round];
+  return deadlineScore(task.due, date)*0.6 + rScore*0.4;
+}
+function roundRank(t){ return t.kind==="review" ? 4 : t.round; }
+
+/* ---------- スケジュール生成（分割可能なグリーディ・パッカー） ---------- */
+function generateSchedule(state){
+  const s = state.settings;
+  const limit = Math.max(1, s.dailyStudyTimeLimit|0);
+  const incW = !!s.includeWeekends;
+  const start = parseISO(s.startDate);
+  const endLimit = parseISO(s.endDate);
+  const ov = state.overrides || {};
+
+  // 教材を順序通りに収集
+  const mats = [];
+  state.subjects.forEach(sub => (sub.chapters||[]).forEach(ch => (ch.materials||[]).forEach(m => {
+    const amt = matAmount(m.type, m);
+    if(amt > 0){
+      const t = matTimes(m.type, amt);
+      mats.push({subject:sub.name, chapter:ch.name, type:m.type, amount:amt,
+                 matKey: sub.name+"|"+ch.name+"|"+m.type, total:t.total});
+    }
+  })));
+
+  // 周ごとの合計（理想ウィンドウ＝期限算出用）
+  let tR1=0,tR2=0,tR3=0;
+  mats.forEach(m=>{ tR1+=roundMinutes(m.total,1); tR2+=roundMinutes(m.total,2); tR3+=roundMinutes(m.total,3); });
+  const idealR1End = addStudyDays(start, Math.max(1,ceilDiv(tR1,limit)), incW);
+  const idealR2End = addStudyDays(addDays(idealR1End,7), Math.max(1,ceilDiv(tR2,limit)), incW);
+  const idealR3End = addStudyDays(addDays(idealR2End,7), Math.max(1,ceilDiv(tR3,limit)), incW);
+  const dueByRound = {1:idealR1End, 2:idealR2End, 3:idealR3End};
+
+  // タスク生成（周回ぶん）
+  let tid=0; const tasks=[];
+  mats.forEach((m, mi)=>{
+    [1,2,3].forEach(r=>{
+      const min = roundMinutes(m.total, r);
+      if(min<=0) return;
+      const off = (ov[m.matKey+"|R"+r]||0);
+      tasks.push({
+        id:"t"+(tid++), kind:"round", round:r, reviewIndex:null,
+        subject:m.subject, chapter:m.chapter, type:m.type, matKey:m.matKey,
+        matTotal:m.total, total:min, remaining:min, matIndex:mi,
+        release: r===1 ? addDays(start, off) : null,   // R2/R3は周完了後に確定
+        releaseOffset: off, due: dueByRound[r]
+      });
+    });
+  });
+
+  // 走査
+  const scheduleByDate = {};
+  let cur = new Date(start);
+  let r1Global=false, r2Global=false;
+  let r1End=null, r2End=null, r3End=null;
+  const r1MatDone = {};
+  let lastDate=null, guard=0;
+
+  while(guard++ < 3000){
+    if(tasks.every(t=>t.remaining<=0)) break;
+
+    if(incW || !isWeekend(cur)){
+      let cap = limit; const todays=[];
+      const elig = tasks.filter(t=> t.remaining>0 && t.release && t.release<=cur);
+      elig.sort((a,b)=>{
+        const d = priorityScore(b,cur)-priorityScore(a,cur);
+        if(Math.abs(d)>0.001) return d;
+        if(roundRank(a)!==roundRank(b)) return roundRank(a)-roundRank(b);
+        return a.matIndex-b.matIndex;
+      });
+      for(const t of elig){
+        if(cap<=0) break;
+        const use = Math.min(cap, t.remaining);
+        if(use<=0) continue;
+        const isSplit = use < t.total;
+        todays.push({
+          taskId:t.id, matKey:t.matKey, subject:t.subject, chapter:t.chapter, type:t.type,
+          kind:t.kind, round:t.round, reviewIndex:t.reviewIndex,
+          minutes:use, taskTotal:t.total, isSplit, due:iso(t.due),
+          priority: Math.round(priorityScore(t,cur))
+        });
+        t.remaining -= use; cap -= use;
+      }
+      if(todays.length){ scheduleByDate[iso(cur)] = todays; lastDate = new Date(cur); }
+    }
+
+    // 各教材の1周目完了→復習を挿入（完了日 +1/+3/+7）
+    tasks.filter(t=>t.kind==="round"&&t.round===1&&t.remaining<=0&&!r1MatDone[t.matKey]).forEach(t=>{
+      r1MatDone[t.matKey]=true;
+      [[1,1],[2,3],[3,7]].forEach(([ri,off])=>{
+        const rmin = reviewMinutes(t.matTotal);
+        if(rmin<=0) return;
+        const extra = (ov[t.matKey+"|RV"+ri]||0);
+        const rel = addDays(cur, off+extra);
+        tasks.push({
+          id:"t"+(tid++), kind:"review", round:null, reviewIndex:ri,
+          subject:t.subject, chapter:t.chapter, type:t.type, matKey:t.matKey,
+          matTotal:t.matTotal, total:rmin, remaining:rmin, matIndex:t.matIndex,
+          release:rel, releaseOffset:extra, due:addDays(rel,3)
+        });
+      });
+    });
+
+    // 全1周目完了→2周目を7日後に解放
+    if(!r1Global && tasks.filter(t=>t.kind==="round"&&t.round===1).every(t=>t.remaining<=0)){
+      r1Global=true; r1End=new Date(cur); const rel=addDays(cur,7);
+      tasks.filter(t=>t.kind==="round"&&t.round===2).forEach(t=> t.release=addDays(rel, t.releaseOffset));
+    }
+    if(r1Global && !r2Global && tasks.filter(t=>t.kind==="round"&&t.round===2).every(t=>t.remaining<=0)){
+      r2Global=true; r2End=new Date(cur); const rel=addDays(cur,7);
+      tasks.filter(t=>t.kind==="round"&&t.round===3).forEach(t=> t.release=addDays(rel, t.releaseOffset));
+    }
+    if(r2Global && r3End===null && tasks.filter(t=>t.kind==="round"&&t.round===3).every(t=>t.remaining<=0)){
+      r3End=new Date(cur);
+    }
+    cur = addDays(cur,1);
+  }
+
+  const dayKeys = Object.keys(scheduleByDate);
+  const totalMin = mats.reduce((a,m)=> a + roundMinutes(m.total,1)+roundMinutes(m.total,2)+roundMinutes(m.total,3)
+                   + (m.total>0 ? reviewMinutes(m.total)*3 : 0), 0);
+  return {
+    scheduleByDate,
+    meta:{
+      startDate:s.startDate, lastDate: lastDate?iso(lastDate):s.startDate,
+      r1End: r1End?iso(r1End):null, r2End:r2End?iso(r2End):null, r3End:r3End?iso(r3End):null,
+      totalDays: dayKeys.length, totalMinutes: totalMin,
+      overflow: lastDate ? (lastDate > endLimit) : false,
+      endTarget: s.endDate
+    }
+  };
+}
+
+/* ============================================================
+   状態・初期データ
+   ============================================================ */
+/* ---- カリキュラムデータ ---- */
+// 簿記論テキスト：[テキスト番号, 章名, ページ数(範囲から算出)]
+const BOKI_TEXT = [
+  [1,"簿記の概要Ⅰ",39],[1,"現金預金Ⅰ",22],[1,"債権債務Ⅰ",23],[1,"商品売買Ⅰ",53],[1,"固定資産Ⅰ",28],
+  [1,"ソフトウェアⅠ",2],[1,"貸倒れⅠ",19],[1,"給料等Ⅰ",7],[1,"税金Ⅰ",11],[1,"純資産Ⅰ",39],
+  [1,"退職給付会計Ⅰ",3],[1,"社債Ⅰ",11],[1,"有価証券Ⅰ",38],[1,"税効果会計Ⅰ",5],[1,"割引現在価値計算Ⅰ",2],
+  [1,"保険金Ⅰ",1],[1,"減損会計Ⅰ",13],[1,"繰延資産Ⅰ",1],
+  [2,"現金預金Ⅱ",7],[2,"リース会計Ⅰ",19],[2,"外貨建会計Ⅰ",41],[2,"退職給付会計Ⅱ",19],[2,"割賦販売Ⅰ",3],
+  [2,"新株予約権社債Ⅰ",13],[2,"試用販売Ⅰ",9],[2,"本支店会計Ⅰ",31],[2,"商品売買Ⅱ",21],[2,"圧縮記帳Ⅰ",6],
+  [2,"資産除去債務Ⅰ",15],[2,"委託販売・受託販売Ⅰ",15],[2,"組織再編会計Ⅰ",14],[2,"連結会計Ⅰ",17],[2,"製造業会計Ⅰ",12],
+  [2,"会計上の変更等Ⅰ",8],[2,"キャッシュ・フロー計算書Ⅰ",14],[2,"有価証券Ⅱ",5],[2,"ソフトウェアⅡ",1],[2,"減損会計Ⅱ",10],
+  [3,"帳簿組織Ⅰ",4],[3,"キャッシュ・フロー計算書Ⅱ",1],[3,"固定資産Ⅱ",1],[3,"ストック・オプションⅠ",7],[3,"連結会計Ⅱ",9],
+  [3,"税効果会計Ⅱ",1],[3,"収益認識Ⅰ",9],[3,"本支店会計Ⅱ",1],[3,"金利スワップⅠ",1],[3,"建設業会計Ⅰ",19],
+  [3,"ソフトウェアⅢ",1],[3,"リース会計Ⅱ",1]
+];
+// 簿記論問題集：[編名, 合計分(表示どおりの分数を合算)]
+const BOKI_PROB = [
+  ["問題集① 仕訳問題編",78],["問題集① 個別問題編",161],["問題集① 総合問題編",140],
+  ["問題集② 仕訳問題編",108],["問題集② 個別問題編",181],["問題集② 総合問題編",330]
+];
+function curriculumSubjects(){
+  const boki = { name:"簿記論", chapters:[] };
+  const cnt = {1:0,2:0,3:0};
+  BOKI_TEXT.forEach((r,i)=>{ const tb=r[0]; cnt[tb]++;
+    boki.chapters.push({ id:"bt_"+i, name:tb+"T-"+cnt[tb]+" "+r[1],
+      materials:[{id:"bt_"+i+"_t", type:"テキスト", pages:r[2]}] });
+  });
+  BOKI_PROB.forEach((r,i)=>{
+    boki.chapters.push({ id:"bp_"+i, name:r[0],
+      materials:[{id:"bp_"+i+"_q", type:"問題集", minutes:r[1]}] });
+  });
+  const zaihyo = { name:"財務諸表論", chapters:[
+    { id:"f1", name:"第1章 財務諸表及び基礎概念", materials:[
+      {id:"f1a", type:"要点チェック", pages:12},
+      {id:"f1b", type:"理論チェック", pages:8},
+      {id:"f1c", type:"○×チェック", pages:6}
+    ]}
+  ]};
+  return [boki, zaihyo];
+}
+function emptySubjects(){ return [ {name:"簿記論", chapters:[]}, {name:"財務諸表論", chapters:[]} ]; }
+
+function defaultState(){
+  const start = todayISO();
+  const end = iso(addDays(new Date(), 300));
+  return {
+    settings:{ dailyStudyTimeLimit:120, startDate:start, endDate:end, includeWeekends:true },
+    subjects: curriculumSubjects(),
+    completed:{},   // pieceKey -> true
+    overrides:{},   // matKey|R# or matKey|RV# -> 追加遅延日数
+    viewDate: start,
+    seeded:true
+  };
+}
+
+let state = Store.load();
+if(!state){ state = defaultState(); }
+// 後方互換のための補完
+state.completed = state.completed||{};
+state.overrides = state.overrides||{};
+if(!state.viewDate) state.viewDate = state.settings.startDate;
+
+let schedule = generateSchedule(state);
+
+function persist(){ Store.save(state); }
+function recompute(){ schedule = generateSchedule(state); persist(); }
+
+/* ピース（その日のタスク断片）の一意キー */
+function pieceKey(date, p){
+  const tag = p.kind==="review" ? "RV"+p.reviewIndex : "R"+p.round;
+  return p.matKey+"#"+tag+"#"+date;
+}
+
+/* ============================================================
+   描画
+   ============================================================ */
+const $ = sel => document.querySelector(sel);
+
+function fmtMin(m){ if(m>=60){ const h=Math.floor(m/60), r=m%60; return r? h+"時間"+r+"分" : h+"時間"; } return m+"分"; }
+function roundLabel(p){
+  if(p.kind==="review"){ const c={1:"①",2:"②",3:"③"}[p.reviewIndex]; return "復習"+c; }
+  return p.round+"周目";
+}
+function badgeClass(p){
+  if(p.kind==="review") return "b-rev";
+  return {1:"b-r1",2:"b-r2",3:"b-r3"}[p.round];
+}
+function taskClass(p){
+  if(p.kind==="review") return "review";
+  return {1:"",2:"r2",3:"r3"}[p.round];
+}
+
+/* ---- 今日ビュー ---- */
+function renderToday(){
+  const date = state.viewDate;
+  const d = parseISO(date);
+  $("#dDate").textContent = (d.getMonth()+1)+"月"+d.getDate()+"日";
+  $("#dDow").textContent = "（"+DOW[d.getDay()]+"）";
+
+  const limit = state.settings.dailyStudyTimeLimit;
+  const pieces = (schedule.scheduleByDate[date]||[]).slice();
+  const used = pieces.reduce((a,p)=>a+p.minutes,0);
+  const doneMin = pieces.reduce((a,p)=> a + (state.completed[pieceKey(date,p)] ? p.minutes : 0), 0);
+  const pct = limit? Math.min(100, Math.round(used/limit*100)) : 0;
+  const donePct = limit? Math.min(100, Math.round(doneMin/limit*100)) : 0;
+
+  $("#mUsed").textContent = used;
+  $("#mLimit").textContent = limit;
+  $("#mFill").style.width = pct+"%";
+  $("#mPct").textContent = "完了 "+fmtMin(doneMin)+" / 予定 "+fmtMin(used);
+  $("#mLeft").textContent = "残り "+fmtMin(Math.max(0, limit-used));
+
+  // 状態色（パッカーは上限内に収めるが、念のため判定）
+  const st = $("#mState"); const fill=$("#mFill");
+  st.className="meter-state"; fill.classList.remove("done-seg");
+  if(used>limit){ st.classList.add("over"); st.textContent="超過 "+(used-limit)+"分"; }
+  else if(pieces.length===0){ st.classList.add("ok"); st.textContent="予定なし"; }
+  else if(used>=limit*0.85){ st.classList.add("warn"); st.textContent="ほぼ満杯"; }
+  else { st.classList.add("ok"); st.textContent="余裕あり"; }
+  if(doneMin>0 && doneMin===used){ fill.classList.add("done-seg"); }
+
+  const list = $("#taskList");
+  if(pieces.length===0){
+    list.innerHTML = `<div class="empty"><b>この日の学習予定はありません</b>別の日を確認するか、教材を追加してください。</div>`;
+    return;
+  }
+  // 優先度順に表示
+  pieces.sort((a,b)=> b.priority-a.priority);
+  const todayKey = todayISO();
+  list.innerHTML = pieces.map(p=>{
+    const key = pieceKey(date,p);
+    const done = !!state.completed[key];
+    const overdue = !done && p.due < todayKey;
+    const cls = [ "task", taskClass(p), done?"done":"", overdue?"overdue":"" ].filter(Boolean).join(" ");
+    const title = `【${p.subject}】${p.chapter} ${p.type}`;
+    return `<div class="${cls}" data-key="${key}">
+      <div class="task-top">
+        <input type="checkbox" class="task-check" ${done?"checked":""} data-key="${key}" aria-label="完了">
+        <div class="task-body">
+          <div class="task-title">${title}</div>
+          <div class="task-meta">
+            <span class="badge ${badgeClass(p)}">${roundLabel(p)}</span>
+            ${p.isSplit?`<span class="badge b-split">分割（全${fmtMin(p.taskTotal)}）</span>`:""}
+            ${overdue?`<span class="badge b-over">⚠ 期限超過</span>`:""}
+            <span class="task-min">${fmtMin(p.minutes)}</span>
+            <span>期限 ${p.due}</span>
+          </div>
+          <div class="task-actions">
+            <button class="act done-btn" data-key="${key}">${done?"未完了に戻す":"完了にする"}</button>
+            <button class="act skip" data-mat="${p.matKey}" data-kind="${p.kind==='review'?'RV'+p.reviewIndex:'R'+p.round}">翌日へ</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ---- 教材ビュー ---- */
+function renderMaterials(){
+  const root = $("#subjectTree");
+  root.innerHTML = state.subjects.map((sub, si)=>{
+    const fzr = sub.name==="財務諸表論" ? "fzr" : "";
+    const chapters = (sub.chapters||[]).map((ch, ci)=>{
+      const rows = matTypesOf(sub.name).map(type=>{
+        const def = MAT_DEFS[type];
+        const m = (ch.materials||[]).find(x=>x.type===type);
+        const amount = m ? matAmount(type, m) : 0;
+        const t = matTimes(type, amount);
+        return `<div class="mat-row">
+            <div class="mat-type">${type}<small>${def.note}</small></div>
+            <div class="mat-pages">
+              <input type="number" min="0" value="${amount}" data-si="${si}" data-ci="${ci}" data-type="${type}" class="pageInput" inputmode="numeric">
+              <span class="u">${def.unit}</span>
+            </div>
+          </div>
+          <div class="mat-time">1周目 ${t.total>0?fmtMin(roundMinutes(t.total,1)):"—"} ｜ 2周目 ${t.total>0?fmtMin(roundMinutes(t.total,2)):"—"} ｜ 3周目 ${t.total>0?fmtMin(roundMinutes(t.total,3)):"—"}${def.marking&&amount>0?`（内 丸つけ・直し ${fmtMin(t.mark)}）`:""}</div>`;
+      }).join("");
+      return `<div class="chapter">
+          <div class="chapter-head"><b>${ch.name}</b>
+            <button class="iconbtn delCh" data-si="${si}" data-ci="${ci}" title="章を削除">🗑</button>
+          </div>
+          ${rows}
+        </div>`;
+    }).join("") || `<div class="note" style="margin:0 2px 8px;">章がまだありません。下のフォームから追加してください。</div>`;
+    return `<div class="subj">
+        <div class="subj-head ${fzr}"><span class="dot"></span>${sub.name}</div>
+        ${chapters}
+      </div>`;
+  }).join("");
+}
+
+/* ---- 進捗ビュー ---- */
+function renderProgress(){
+  const m = schedule.meta;
+  $("#stDays").textContent = m.totalDays + "日";
+  $("#stEnd").textContent = m.lastDate ? m.lastDate.slice(5).replace("-","/") : "—";
+  $("#stHours").textContent = (m.totalMinutes/60).toFixed(1) + "h";
+
+  // 完了タスク数（ピース単位）
+  let totalPieces=0, donePieces=0;
+  Object.entries(schedule.scheduleByDate).forEach(([date,arr])=>{
+    arr.forEach(p=>{ totalPieces++; if(state.completed[pieceKey(date,p)]) donePieces++; });
+  });
+  $("#stDone").textContent = donePieces + "/" + totalPieces;
+
+  // 超過警告
+  const ob = $("#overflowBox");
+  if(m.overflow){
+    ob.innerHTML = `<div class="warnbox">⚠ 目標終了日（${m.endTarget}）を過ぎます。完了予定は <b>${m.lastDate}</b> です。1日の上限を増やすか、教材を見直してください。</div>`;
+  } else { ob.innerHTML = ""; }
+
+  // 科目別：要した分の達成度（完了ピース分／全予定分）
+  const subjAgg = {};
+  state.subjects.forEach(s=> subjAgg[s.name]={done:0,total:0, r1:false,r2:false,r3:false});
+  Object.entries(schedule.scheduleByDate).forEach(([date,arr])=>{
+    arr.forEach(p=>{
+      const a=subjAgg[p.subject]; if(!a) return;
+      a.total+=p.minutes;
+      if(state.completed[pieceKey(date,p)]) a.done+=p.minutes;
+    });
+  });
+  // マイルストーン判定：その科目の各周が全完了か
+  const roundRemain = {}; // subject -> {1,2,3} 未完了分
+  state.subjects.forEach(s=> roundRemain[s.name]={1:0,2:0,3:0});
+  Object.entries(schedule.scheduleByDate).forEach(([date,arr])=>{
+    arr.forEach(p=>{ if(p.kind==="round"){ const done=state.completed[pieceKey(date,p)];
+      if(!done) roundRemain[p.subject][p.round]+=p.minutes; } });
+  });
+
+  const list = $("#progressList");
+  const subs = state.subjects.filter(s=> subjAgg[s.name].total>0);
+  if(subs.length===0){ list.innerHTML = `<div class="empty"><b>データがありません</b>教材ページ数を入力してください。</div>`; return; }
+  list.innerHTML = subs.map(s=>{
+    const a = subjAgg[s.name];
+    const pct = a.total? Math.round(a.done/a.total*100) : 0;
+    const rr = roundRemain[s.name];
+    const ms = (r,label)=>`<span class="${rr[r]===0?'hit':''}">${rr[r]===0?'✓ ':''}${label}</span>`;
+    return `<div class="pcard">
+        <div class="pname">${s.name}</div>
+        <div class="pstat">完了 ${fmtMin(a.done)} / 予定 ${fmtMin(a.total)}（${pct}%）</div>
+        <div class="pbar"><i style="width:${pct}%"></i></div>
+        <div class="pmilestones">${ms(1,"1周目")}${ms(2,"2周目")}${ms(3,"3周目")}<span class="${pct===100?'hit':''}">${pct===100?'✓ ':''}全完了</span></div>
+      </div>`;
+  }).join("");
+}
+
+/* ---- 設定ビュー ---- */
+function renderSettings(){
+  $("#setLimit").value = state.settings.dailyStudyTimeLimit;
+  $("#setStart").value = state.settings.startDate;
+  $("#setEnd").value = state.settings.endDate;
+  $("#setWeekend").checked = !!state.settings.includeWeekends;
+}
+
+function renderTag(){
+  const m = schedule.meta;
+  $("#planTag").textContent = m.totalDays>0 ? ("全"+m.totalDays+"日") : "未設定";
+}
+
+function renderAll(){ renderToday(); renderMaterials(); renderProgress(); renderSettings(); renderTag(); }
+
+/* ============================================================
+   操作・イベント
+   ============================================================ */
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),1900); }
+
+// タブ切替
+document.querySelectorAll(".tab").forEach(tab=>{
+  tab.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+    tab.classList.add("active");
+    $("#view-"+tab.dataset.v).classList.add("active");
+    if(tab.dataset.v==="today") renderToday();
+    if(tab.dataset.v==="progress") renderProgress();
+    window.scrollTo({top:0, behavior:"smooth"});
+  });
+});
+
+// 日付ナビ
+$("#prevDay").addEventListener("click", ()=>{ state.viewDate=iso(addDays(parseISO(state.viewDate),-1)); persist(); renderToday(); });
+$("#nextDay").addEventListener("click", ()=>{ state.viewDate=iso(addDays(parseISO(state.viewDate),1)); persist(); renderToday(); });
+$("#todayBtn").addEventListener("click", ()=>{ state.viewDate=todayISO(); persist(); renderToday(); });
+
+// 今日ビュー内のクリック（チェック・完了・スキップ）
+$("#taskList").addEventListener("click",(e)=>{
+  const chk = e.target.closest(".task-check");
+  const dbtn = e.target.closest(".done-btn");
+  const skip = e.target.closest(".skip");
+  if(chk || dbtn){
+    const key = (chk||dbtn).dataset.key;
+    state.completed[key] = !state.completed[key];
+    if(!state.completed[key]) delete state.completed[key];
+    persist(); renderToday(); renderProgress();
+    return;
+  }
+  if(skip){
+    const ok = confirm("このタスクを翌日以降へ移動しますか？\n（同じ教材・周回の予定がまとめて後ろにずれます）");
+    if(!ok) return;
+    const k = skip.dataset.mat+"|"+skip.dataset.kind;
+    state.overrides[k] = (state.overrides[k]||0)+1;
+    recompute(); renderToday(); renderProgress(); renderTag();
+    toast("翌日以降へ移動しました");
+  }
+});
+
+// 教材：ページ数入力
+$("#subjectTree").addEventListener("change",(e)=>{
+  const inp = e.target.closest(".pageInput");
+  if(inp){
+    const si=+inp.dataset.si, ci=+inp.dataset.ci, type=inp.dataset.type;
+    const val = Math.max(0, parseInt(inp.value||"0",10)||0);
+    const direct = !!MAT_DEFS[type].direct;
+    const ch = state.subjects[si].chapters[ci];
+    ch.materials = ch.materials||[];
+    let m = ch.materials.find(x=>x.type===type);
+    if(!m && val>0){ m = {id:"m_"+Date.now()+Math.random().toString(36).slice(2,5), type}; ch.materials.push(m); }
+    if(m){ if(direct) m.minutes=val; else m.pages=val; }
+    recompute(); renderMaterials(); renderProgress(); renderTag();
+  }
+});
+// 教材：章削除
+$("#subjectTree").addEventListener("click",(e)=>{
+  const del = e.target.closest(".delCh");
+  if(del){
+    const si=+del.dataset.si, ci=+del.dataset.ci;
+    if(confirm("この章と入力済みページ数を削除しますか？")){
+      state.subjects[si].chapters.splice(ci,1);
+      recompute(); renderMaterials(); renderProgress(); renderTag(); toast("章を削除しました");
+    }
+  }
+});
+// 章追加
+$("#addChapter").addEventListener("click", ()=>{
+  const subj = $("#newChSubject").value;
+  const name = $("#newChName").value.trim();
+  if(!name){ toast("章名を入力してください"); return; }
+  const sub = state.subjects.find(s=>s.name===subj);
+  sub.chapters = sub.chapters||[];
+  sub.chapters.push({id:"ch_"+Date.now(), name, materials:[]});
+  $("#newChName").value="";
+  recompute(); renderMaterials(); toast("章を追加しました");
+});
+$("#genFromMat").addEventListener("click", ()=>{ recompute(); renderAll(); toast("スケジュールを再計算しました"); });
+
+// 設定保存
+$("#saveSettings").addEventListener("click", ()=>{
+  const lim = Math.max(15, parseInt($("#setLimit").value||"120",10)||120);
+  const start=$("#setStart").value, end=$("#setEnd").value;
+  if(!start||!end){ toast("開始日と終了日を入力してください"); return; }
+  if(end<start){ toast("終了日は開始日より後にしてください"); return; }
+  state.settings = { dailyStudyTimeLimit:lim, startDate:start, endDate:end, includeWeekends:$("#setWeekend").checked };
+  if(state.viewDate < start || state.viewDate > end) state.viewDate = start;
+  recompute(); renderAll(); toast("設定を保存しました");
+});
+
+// サンプル / リセット
+$("#loadSample").addEventListener("click", ()=>{
+  if(confirm("現在の入力を破棄して、簿記論・財務諸表論のカリキュラムを読み込み直しますか？")){
+    state = defaultState(); recompute(); renderAll(); toast("カリキュラムを読み込みました");
+  }
+});
+$("#resetAll").addEventListener("click", ()=>{
+  if(confirm("すべての章・入力を消去して空の状態にしますか？")){
+    Store.clear(); state = defaultState(); state.subjects = emptySubjects(); recompute(); renderAll(); toast("初期化しました");
+  }
+});
+
+// エクスポート
+function download(name, content, type){
+  const blob = new Blob([content], {type}); const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url);
+}
+$("#expJson").addEventListener("click", ()=>{
+  download("study-schedule.json", JSON.stringify({settings:state.settings, schedule:schedule, generatedAt:new Date().toISOString()}, null, 2), "application/json");
+  toast("JSON を保存しました");
+});
+$("#expCsv").addEventListener("click", ()=>{
+  const rows=[["日付","科目","章","教材","周回","所要分","期限","完了"]];
+  Object.entries(schedule.scheduleByDate).sort().forEach(([date,arr])=>{
+    arr.forEach(p=>{
+      rows.push([date,p.subject,p.chapter,p.type,roundLabel(p),p.minutes,p.due, state.completed[pieceKey(date,p)]?"済":""]);
+    });
+  });
+  const csv = "\uFEFF"+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\r\n");
+  download("study-schedule.csv", csv, "text/csv");
+  toast("CSV を保存しました");
+});
+
+/* ---------- 起動 ---------- */
+renderAll();
+</script>
+</body>
+</html>
